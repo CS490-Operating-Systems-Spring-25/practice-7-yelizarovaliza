@@ -25,7 +25,7 @@ _start:
     mov x0, #-100
     ldr x1, =filename
     mov x2, #0x241
-    mov x3, #0o644
+    mov x3, #420
     mov x8, #56
     svc #0
     mov x9, x0
@@ -39,6 +39,14 @@ _start:
     // Close File (syscall 57 - close)
     mov x0, x9
     mov x8, #57
+    svc #0
+
+    // Change file permission (syscall 52 - change permission)
+    mov x0, #-100
+    ldr x1, =filename
+    mov x2, #511
+    mov x3, #0
+    mov x8, #52
     svc #0
 
     // Read File Content (syscall 56 - openat for reading)
