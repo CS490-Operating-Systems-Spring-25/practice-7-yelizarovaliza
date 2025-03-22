@@ -65,6 +65,9 @@ cpu_exec
     var catStr
     write "cat" to var:catStr
 
+    var diffFiles
+    write "diff" to var:diffFiles
+
 label kernel_start
     // Display prompt to enter the value:
     copy var:sys_work_dir to DISPLAY_BUFFER
@@ -121,6 +124,13 @@ label kernel_start
     write OP_CMP_EQ to REG_OP
     cpu_exec
     jump_if label:cat_command
+
+    // differentiate files
+    copy var:parsedStr to REG_A
+    copy var:diffFiles to REG_B
+    write OP_CMP_EQ to REG_OP
+    cpu_exec
+    jump_if label:diff_files
 
     jump label:kernel_start
 
@@ -179,6 +189,124 @@ label cat_command
         jump label:sys_fs_close
         jump label:kernel_start
 
+
+label diff_files
+    //parse file names from the command arguments
+    copy KEYBOARD_BUFFER to REG_A
+    write 2 to REG_B
+    write " " to REG_C
+    write OP_GET_COLUMN to REG_OP
+    cpu_exec
+    var file1
+    copy REG_RES to var:file1
+
+    copy KEYBOARD_BUFFER to REG_A
+    write 3 to REG_B
+    write " " to REG_C
+    write OP_GET_COLUMN to REG_OP
+    cpu_exec
+    var file2
+    copy REG_RES to var:file2
+
+    //open first file
+    var fd1
+    copy var:file1 to REG_A
+    copy PROGRAM_COUNTER to var:sys_return
+    jump label:sys_fs_open
+    jump_err label:diff_files_error
+    copy REG_RES to var:fd1
+
+    //open second file
+    var fd2
+    copy var:file2 to REG_A
+    copy PROGRAM_COUNTER to var:sys_return
+    jump label:sys_fs_open
+    jump_err label:diff_files_error
+    copy REG_RES to var:fd2
+
+    //line counter
+    var line_counter
+    write 1 to var:line_counter
+
+    label diff_files_loop
+        //read line from 1 file
+        copy var:fd1 to REG_A
+        copy var:line_counter to REG_B
+        copy PROGRAM_COUNTER to var:sys_return
+        jump label:sys_fs_read
+        jump_err label:diff_files_close
+        var line1
+        copy REG_RES to var:line1
+
+        //read line from 2 file
+        copy var:fd2 to REG_A
+        copy var:line_counter to REG_B
+        copy PROGRAM_COUNTER to var:sys_return
+        jump label:sys_fs_read
+        jump_err label:diff_files_close
+        var line2
+        copy REG_RES to var:line2
+
+        //compare lines
+        copy var:line1 to REG_A
+        copy var:line2 to REG_B
+        write OP_CMP_EQ to REG_OP
+        cpu_exec
+        jump_if label:diff_files_next_line
+
+        //different lines output
+        write "difference at line: " to DISPLAY_BUFFER
+        write COLOR_RED to DISPLAY_COLOR
+        write OP_DISPLAY to REG_OP
+        cpu_exec
+        copy var:line_counter to DISPLAY_BUFFER
+        write OP_DISPLAY_LN to REG_OP
+        cpu_exec
+
+        write "file 1: " to DISPLAY_BUFFER
+        write COLOR_GREEN to DISPLAY_COLOR
+        write OP_DISPLAY to REG_OP
+        cpu_exec
+        copy var:line1 to DISPLAY_BUFFER
+        write OP_DISPLAY_LN to REG_OP
+        cpu_exec
+
+        write "file 2: " to DISPLAY_BUFFER
+        write COLOR_GREEN to DISPLAY_COLOR
+        write OP_DISPLAY to REG_OP
+        cpu_exec
+        copy var:line2 to DISPLAY_BUFFER
+        write OP_DISPLAY_LN to REG_OP
+        cpu_exec
+
+        jump label:diff_files_close
+
+        label diff_files_next_line
+            //increment counter and continue
+            copy var:line_counter to REG_A
+            write OP_INCR to REG_OP
+            cpu_exec
+            copy REG_RES to var:line_counter
+            jump label:diff_files_loop
+
+    label diff_files_close
+        //close files
+        copy var:fd1 to REG_A
+        copy PROGRAM_COUNTER to var:sys_return
+        jump label:sys_fs_close
+
+        copy var:fd2 to REG_A
+        copy PROGRAM_COUNTER to var:sys_return
+        jump label:sys_fs_close
+
+        jump label:kernel_start
+
+    label diff_files_error
+        write "error opening files" to DISPLAY_BUFFER
+        write COLOR_RED to DISPLAY_COLOR
+        write OP_DISPLAY_LN to REG_OP
+        cpu_exec
+        jump label:kernel_start
 
 label kernel_end
     copy REG_ERROR to DISPLAY_BUFFER
